@@ -4,6 +4,13 @@ format: html
 editor: visual
 ---
 
+```{r, echo = FALSE, message = FALSE, warning = FALSE, include = FALSE}
+# load necessary libraries
+library(diplyr)
+library(forcats)
+library(tidyverse)
+```
+
 ## Introduction
 
 Briefly describe the data and the variables you have to work with
@@ -59,15 +66,13 @@ Describe the purpose of your EDA and ultimate goal of modeling
 ## Data
 
 ```{r}
-# load libraries
-
 # relative path to import the data
 data <- read.csv("./diabetes_binary_health_indicators_BRFSS2015.csv")
 
 # convert variables to factors with meaningful level names
 data$Diabetes_binary <- factor(data$Diabetes_binary,
-                           levels= c(0,1,2),
-                           labels = c("no diabetes","prediabetes","diabetes"))
+                           levels= c(0,1),
+                           labels = c("no diabetes","prediabetes or diabetes"))
 data$HighBP <- factor(data$HighBP,
                   levels = c(0,1),
                   labels = c("no high BP", "high BP"))
@@ -77,15 +82,15 @@ data$HighChol <- factor(data$HighChol,
 data$CholCheck <- factor(data$CholCheck,
                     levels = c(0,1),
                     labels = c("no cholesterol check in 5 years", "yes cholesterol check in 5 years"))
-data <- data |>
-  mutate(
-    BMI = case_when(
-      BMI < 18.5 ~ "underweight",
-      BMI >= 18.5 & data$BMI < 24 ~ "healthy weight",
-      BMI >= 24 & data$BMI < 30 ~ "overweight",
-      BMI >= 30 ~ "obese"
-  )
-)
+#data <- data |>
+#  mutate(
+#    BMI = case_when(
+#      BMI < 18.5 ~ "underweight",
+#      BMI >= 18.5 & data$BMI < 24 ~ "healthy weight",
+#      BMI >= 24 & data$BMI < 30 ~ "overweight",
+#      BMI >= 30 ~ "obese"
+#  )
+#)
 data$Smoker <- factor(data$Smoker,
                       levels = c(0,1),
                       labels = c("not a smoker", "smoker"))
@@ -116,28 +121,28 @@ data$NoDocbcCost <- factor(data$NoDocbcCost,
 data$GenHlth <- factor(data$GenHlth,
                        levels = c(1,2,3,4,5),
                        labels = c("excellent","very good","good","fair","poor"))
-data <- data |>
-  mutate(
-    MentHlth = case_when(
-      MentHlth <= 5 ~ "<= 5",
-      MentHlth > 5 & MentHlth <= 10 ~ "6-10",
-      MentHlth > 10 & MentHlth <= 15 ~ "11-15",
-      MentHlth > 15 & MentHlth <= 20 ~ "16-20",
-      MentHlth > 20 & MentHlth <= 25 ~ "21-25",
-      MentHlth > 25 ~ "26-30"
-  )
-)
-data <- data |>
-  mutate(
-    PhysHlth = case_when(
-      PhysHlth <= 5 ~ "<= 5",
-      PhysHlth > 5 & PhysHlth <= 10 ~ "6-10",
-      PhysHlth > 10 & PhysHlth <= 15 ~ "11-15",
-      PhysHlth > 15 & PhysHlth <= 20 ~ "16-20",
-      PhysHlth > 20 & PhysHlth <= 25 ~ "21-25",
-      PhysHlth > 25 ~ "26-30"
-  )
-)
+#data <- data |>
+#  mutate(
+#    MentHlth = case_when(
+#      MentHlth <= 5 ~ "<= 5",
+#      MentHlth > 5 & MentHlth <= 10 ~ "6-10",
+#      MentHlth > 10 & MentHlth <= 15 ~ "11-15",
+#      MentHlth > 15 & MentHlth <= 20 ~ "16-20",
+#      MentHlth > 20 & MentHlth <= 25 ~ "21-25",
+#      MentHlth > 25 ~ "26-30"
+#  )
+#)
+#data <- data |>
+#  mutate(
+#    PhysHlth = case_when(
+#      PhysHlth <= 5 ~ "<= 5",
+#      PhysHlth > 5 & PhysHlth <= 10 ~ "6-10",
+#      PhysHlth > 10 & PhysHlth <= 15 ~ "11-15",
+#      PhysHlth > 15 & PhysHlth <= 20 ~ "16-20",
+#      PhysHlth > 20 & PhysHlth <= 25 ~ "21-25",
+#      PhysHlth > 25 ~ "26-30"
+#  )
+#)
 data$DiffWalk <- factor(data$DiffWalk,
                         levels = c(0,1),
                         labels = c("no","yes"))
@@ -163,7 +168,31 @@ sum(is.na(data))
 
 ```{r}
 # meaningful summary statistics and plots about the data (especially as it relates to your response)
+# Be sure to have a narrative about what you are exploring and what the summaries and graph you created say about the relationships in your data.
 
+# Obesity vs Diabetes- obesity is a risk factor for diabetes
+ggplot(data, aes(x=BMI, fill=Diabetes_binary)) +
+  geom_density(alpha=0.5) +
+  scale_fill_manual(values=c("no diabetes"="lightgreen","prediabetes or diabetes"="lightpink"))
 
-# do EDA on full data (not training/testing set first)
+# Income vs Diabetes- income level is positively associated with ability to access to healthy foods which help prevent diabetes. 
+income_diabetes_counts <- data |>
+  group_by(Diabetes_binary,Income) |>
+  summarise(n=n())
+# Calculate proportion of each income level that is diabetic.
+income_levels <- income_diabetes_counts[1:8,2]
+income_no_diabetes <- income_diabetes_counts[1:8,3]
+income_yes_diabetes <- income_diabetes_counts[9:16,3]
+income_prop <- income_yes_diabetes/(income_no_diabetes+income_yes_diabetes)
+income_summary <- data.frame(income_levels,income_prop)
+# plot
+ggplot(income_summary, aes(x = Income, y = n)) +
+  geom_bar(stat = "identity", position = "stack", fill="lightpink") +
+  labs(title = "Income vs Diabetes",x="Income",y="Proportion Prediabetic/Diabetic")
+
+# Age vs Diabetes- risk for diabetes increases as age increases
+ggplot(data, aes(x = Age, fill = Diabetes_binary)) +
+  geom_bar(stat = "count", position = "stack") +
+  labs(title = "Age vs Diabetes", x = "Age Category", y = "", fill = "Diabetes") +
+  scale_fill_manual(values = c("no diabetes" = "lightgreen","prediabetes or diabetes" = "lightpink"))
 ```
