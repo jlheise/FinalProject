@@ -1,0 +1,169 @@
+---
+title: "EDA"
+format: html
+editor: visual
+---
+
+## Introduction
+
+Briefly describe the data and the variables you have to work with
+
+This data is taken from the Behavioral Risk Factor Surveillance System (BRFSS) which is a annual CDC survey. The data used in this project is from 2015 and contains diabetes health indicators:
+
+-   Diabetes_binary: 0 = no diabetes 1 = prediabetes 2 = diabetes
+
+-   HighBP: 0 = no high BP 1 = high BP
+
+-   HighChol: 0 = no high cholesterol 1 = high cholesterol
+
+-   CholCheck: 0 = no cholesterol check in 5 years 1 = yes cholesterol check in 5 years
+
+-   BMI: Body Mass Index numeric range 12 to 98
+
+-   Smoker: Have you smoked at least 100 cigarettes in your entire life? 0 = no 1 = yes
+
+-   Stroke: (Ever told) you had a stroke 0 = no 1 = yes
+
+-   HeartDiseaseorAttack: coronary heart disease (CHD) or myocardial infarction (MI) 0 = no 1 = yes
+
+-   PhysActivity: physical activity in past 30 days- not including job 0 = no 1 = yes
+
+-   Fruits: Consume Fruit 1 or more times per day 0 = no 1 = yes
+
+-   Veggies: Consume Vegetables 1 or more times per day 0 = no 1 = yes
+
+-   HvyAlcoholConsump: (adult men \>= 14 drinks per week and adult women \>= 7 drinks per week) 0 = no 1 = yes
+
+-   AnyHealthcare: Have any kind of health care coverage, including health insurance, prepaid plans such as HMO, etc. 0 = no 1 = yes
+
+-   NoDocbcCost: Was there a time in the past 12 months when you needed to see a doctor but could not because of cost? 0 = no 1 = yes
+
+-   GenHlth: Would you say that in general your health is: scale 1-5 1 = excellent 2 = very good 3 = good 4 = fair 5 = poor
+
+-   MentHlth: days of poor mental health scale 1-30 days
+
+-   PhysHlth: physical illness or injury days in past 30 days scale 1-30
+
+-   DiffWalk: Do you have serious difficulty walking or climbing stairs? 0 = no 1 = yes
+
+-   Sex: 0 = female 1 = male
+
+-   Age = 13-level age category (\_AGEG5YR see codebook) 1 = 18-24 9 = 60-64 13 = 80 or older
+
+-   Education: Education level (EDUCA see codebook) scale 1-6 1= Never attended school or only kindergarten 2 = elementary etc.
+
+-   Income: Income scale (INCOME2 see codebook) scale 1-8 1 = less than \$10,000 5 = less than \$35,000 8= \$75,000 or more
+
+Describe the purpose of your EDA and ultimate goal of modeling
+
+## Data
+
+```{r}
+# load libraries
+
+# relative path to import the data
+data <- read.csv("./diabetes_binary_health_indicators_BRFSS2015.csv")
+
+# convert variables to factors with meaningful level names
+data$Diabetes_binary <- factor(data$Diabetes_binary,
+                           levels= c(0,1,2),
+                           labels = c("no diabetes","prediabetes","diabetes"))
+data$HighBP <- factor(data$HighBP,
+                  levels = c(0,1),
+                  labels = c("no high BP", "high BP"))
+data$HighChol <- factor(data$HighChol,
+                    levels = c(0,1),
+                    labels = c("no high cholesterol", "high cholesterol"))
+data$CholCheck <- factor(data$CholCheck,
+                    levels = c(0,1),
+                    labels = c("no cholesterol check in 5 years", "yes cholesterol check in 5 years"))
+data <- data |>
+  mutate(
+    BMI = case_when(
+      BMI < 18.5 ~ "underweight",
+      BMI >= 18.5 & data$BMI < 24 ~ "healthy weight",
+      BMI >= 24 & data$BMI < 30 ~ "overweight",
+      BMI >= 30 ~ "obese"
+  )
+)
+data$Smoker <- factor(data$Smoker,
+                      levels = c(0,1),
+                      labels = c("not a smoker", "smoker"))
+data$Stroke <- factor(data$Stroke,
+                      levels = c(0,1),
+                      labels = c("no", "yes"))
+data$HeartDiseaseorAttack <- factor(data$HeartDiseaseorAttack,
+                        levels = c(0,1),
+                        labels = c("no","yes"))
+data$PhysActivity <- factor(data$PhysActivity,
+                            levels = c(0,1),
+                            labels = c("inactive","active"))
+data$Fruits <- factor(data$Fruits,
+                      levels = c(0,1),
+                      labels = c("no","yes"))
+data$Veggies <- factor(data$Veggies,
+                       levels = c(0,1),
+                       labels = c("no","yes"))
+data$HvyAlcoholConsump <- factor(data$HvyAlcoholConsump,
+                                 levels = c(0,1),
+                                 labels = c("no","yes"))
+data$AnyHealthcare <- factor(data$AnyHealthcare,
+                             levels = c(0,1),
+                             labels = c("no","yes"))
+data$NoDocbcCost <- factor(data$NoDocbcCost,
+                           levels = c(0,1),
+                           labels = c("no","yes"))
+data$GenHlth <- factor(data$GenHlth,
+                       levels = c(1,2,3,4,5),
+                       labels = c("excellent","very good","good","fair","poor"))
+data <- data |>
+  mutate(
+    MentHlth = case_when(
+      MentHlth <= 5 ~ "<= 5",
+      MentHlth > 5 & MentHlth <= 10 ~ "6-10",
+      MentHlth > 10 & MentHlth <= 15 ~ "11-15",
+      MentHlth > 15 & MentHlth <= 20 ~ "16-20",
+      MentHlth > 20 & MentHlth <= 25 ~ "21-25",
+      MentHlth > 25 ~ "26-30"
+  )
+)
+data <- data |>
+  mutate(
+    PhysHlth = case_when(
+      PhysHlth <= 5 ~ "<= 5",
+      PhysHlth > 5 & PhysHlth <= 10 ~ "6-10",
+      PhysHlth > 10 & PhysHlth <= 15 ~ "11-15",
+      PhysHlth > 15 & PhysHlth <= 20 ~ "16-20",
+      PhysHlth > 20 & PhysHlth <= 25 ~ "21-25",
+      PhysHlth > 25 ~ "26-30"
+  )
+)
+data$DiffWalk <- factor(data$DiffWalk,
+                        levels = c(0,1),
+                        labels = c("no","yes"))
+data$Sex <- factor(data$Sex,
+                   levels = c(0,1),
+                   labels = c("female","male"))
+data$Age <- factor(data$Age,
+                   levels = c(1,2,3,4,5,6,7,8,9,10,11,12,13),
+                   labels = c("18-24","25-29","30-34","35-39","40-44","45-49","50-54","55-59","60-64","65-69","70-74","75-79","80+"))
+data$Education <- factor(data$Education,
+                         levels = c(1,2,3,4,5,6),
+                         labels = c("Never attended school or only kindergarten","elementary","some high scohol","high school graduate","some college or technical school","college graduate"))
+data$Income <- factor(data$Income,
+                      levels = c(1,2,3,4,5,6,7,8),
+                      labels = c("<$10,000","<$15,000","<$20,000","<$25,000","<$35,000","<$50,000","<$75,000","$75,000+"))
+
+# check on missingness
+sum(is.na(data))
+# 0 indicates no NAs
+```
+
+## Summarizations
+
+```{r}
+# meaningful summary statistics and plots about the data (especially as it relates to your response)
+
+
+# do EDA on full data (not training/testing set first)
+```
