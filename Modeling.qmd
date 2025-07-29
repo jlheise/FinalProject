@@ -1,5 +1,176 @@
 ---
 title: "Modeling"
+author: "Jessie Heise"
 format: html
 editor: visual
 ---
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, include = FALSE}
+# load necessary libraries
+library(dplyr)
+library(forcats)
+library(tidyverse)
+library(yardstick)
+library(tidymodels)
+library(ModelMetrics)
+library(tree)
+```
+
+## Introduction
+
+This data is taken from the Behavioral Risk Factor Surveillance System (BRFSS) which is a annual CDC survey. The data used in this project is from 2015 and contains diabetes health indicators. The purpose of this modeling to see how these risk factors influence a population's risk of having diabetes. Obesity, Income, and Age are the variables we are looking at.
+
+```{r}
+# Change BMI to factor
+data <- data |>
+  mutate(
+    BMI = case_when(
+      BMI < 18.5 ~ 1, #underweight
+      BMI >= 18.5 & BMI < 24 ~ 2, #healthy weight
+      BMI >= 24 & BMI < 30 ~ 3, #overweight
+      BMI >= 30 ~ 4, #obese
+    )
+  )
+data$BMI <- factor(data$BMI,
+                        levels = c(1,2,3,4),
+                        labels = c("underweight","healthy weight","overweight","obese"),
+                        ordered = TRUE)
+
+# split the data into a training (70% of the data) and test set (30% of the data)
+# use set.seed() to make things reproducible
+set.seed(101)
+diabetes_split <- initial_split(data2, prop = 0.7)
+diabetes_train <- training(diabetes_split)
+diabetes_test <- testing(diabetes_split)
+```
+
+## Logistic Regression Models
+
+A logistic regression model is used to investigate the relationship between one or more independent variables on a binary dependent variable. We apply it to this kind of data because it is used when you have a binary response variable like we do with the diabetes data set- either no diabetes or prediabetes/diabetes are the two options.
+
+#### First Candidate Logistic Regression Model: OLS
+
+```{r}
+# We’ll use logLoss as our metric to evaluate models. For all model types use logLoss with 5 fold crossvalidation to select the best model. 
+diabetes_folds <- vfold_cv(diabetes_train, v = 5, strata = Diabetes_binary)
+
+# Fit an interaction model (named ols_mlr) with Diabetes_binary as the response, and max BMI + Age as your explanatory variables using the training data set. Report the summary output.
+ols_mlr <- glm(Diabetes_binary ~ BMI*Age, data = diabetes_train, family = "binomial")
+summary(ols_mlr)
+
+# We are going to use log loss to evaluate this model’s predictive performance on new data. Test your model on the testing data set. Calculate the log loss.
+#predicted_new_values <- as.vector(predict(ols_mlr, newdata = diabetes_test))
+logLoss(ols_mlr)
+```
+
+#### Second Candidate Logistic Regression Model: LASSO
+
+```{r}
+# We are going to use cross validation to select the best tuning parameter, and then evaluate our LASSO model on the testing data set
+LASSO_recipe <- recipe(Diabetes_binary ~ BMI + Age, data = diabetes_train) |>
+step_dummy(Age) |>
+step_normalize(BMI) |>
+step_interact(~ BMI:starts_with("BMI_"))
+LASSO_recipe
+
+LASSO_spec <- linear_reg(penalty = tune(), mixture = 1) |>
+set_engine("glmnet")
+LASSO_wkf <- workflow() |>
+add_recipe(LASSO_recipe) |>
+add_model(LASSO_spec)
+LASSO_grid <- LASSO_wkf |>
+tune_grid(resamples = diabetes_folds,
+grid = grid_regular(penalty(), levels = 200))
+
+lowest_logloss <- LASSO_grid |>
+select_best(metric=NULL)
+LASSO_wkf |>
+finalize_workflow(lowest_logloss)
+
+LASSO_final <- LASSO_wkf |>
+finalize_workflow(lowest_logloss) |>
+fit(diabetes_train)
+tidy(LASSO_final)
+```
+
+#### Third Candidate Logistic Regression Model
+
+```{r}
+LR3_rec <- recipe(Diabetes_binary ~ BMI + Age, data = diabetes_train) #|>  
+#  step_normalize(all_numeric(), -Diabetes_binary) |>  
+#  step_dummy(BMI, Age)
+LR3_rec |>   prep(diabetes_train) |>   
+  bake(diabetes_train) |>   
+  colnames()
+LR_spec <- logistic_reg() |>
+  set_engine("glm") 
+LR3_wkf <- workflow() |>  
+  add_recipe(LR3_rec) |>  
+  add_model(LR_spec) 
+LR3_fit <- LR3_wkf |>  
+  fit_resamples(diabetes_folds, metrics = metric_set(accuracy, mn_log_loss)) 
+rbind(LR3_fit |> collect_metrics(),      
+      bag_fit |> collect_metrics() |>        
+        filter(cost_complexity == bag_best_params$cost_complexity) |>         
+        select(-cost_complexity))
+```
+
+#### Log-Loss Comparisons
+
+The OLS model had a log loss metric of 0.3604219 and the LASSO model had a log loss metric of \_\_\_, indicating that the \_\_ model is the best fit.
+
+## Classification Tree
+
+A classification tree model is used to predict group membership. The most prevalent class in region is used as the prediction.
+
+#### Fit a Classification Tree with varying values for the complexity parameter and choose the best model (best complexity parameter)
+
+```{r}
+tree_rec <- recipe(Diabetes_binary ~ ., data = diabetes_train) |>
+  step_normalize(all_numeric(), -all_outcomes())
+tree_rec
+
+tree_mod <- decision_tree(tree_depth = tune(),
+                          min_n = 20,
+                          cost_complexity = tune()) |>
+  set_engine("rpart") |>
+  set_mode("regression")
+
+tree_wkf <- workflow() |>
+  add_recipe(tree_rec) |>
+  add_model(tree_mod)
+
+tree_fits <- tree_wkf |> 
+  tune_grid(resamples = diabetes_folds,
+            grid = tree_grid)
+
+tree_fits |>
+  collect_metrics() |>
+  filter(.metric == "rmse") |>
+  arrange(mean)
+
+tree_best_params <- select_best(tree_fits, metric = "rmse")
+
+tree_final_wkf <- tree_wkf |>
+  finalize_workflow(tree_best_params)
+
+tree_final_fit <- tree_final_wkf |>
+  last_fit(diabetes_split)
+
+tree_final_fit |>
+  collect_metrics()
+```
+
+## Random Forest
+
+A random forest creates multiple trees from bootstrap samples and averages the results for a final prediction. We use it because it reduces overfitting.
+
+#### Fit a Random Forest model and choose the best model
+
+```{r}
+
+```
+
+## Final Model Selection
+
+You should now have three best models (one for each model type above). Now compare all three models on the test set and declare an overall winner

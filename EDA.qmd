@@ -1,19 +1,18 @@
 ---
 title: "EDA"
+author: "Jessie Heise"
 format: html
 editor: visual
 ---
 
 ```{r, echo = FALSE, message = FALSE, warning = FALSE, include = FALSE}
 # load necessary libraries
-library(diplyr)
+library(dplyr)
 library(forcats)
 library(tidyverse)
 ```
 
 ## Introduction
-
-Briefly describe the data and the variables you have to work with
 
 This data is taken from the Behavioral Risk Factor Surveillance System (BRFSS) which is a annual CDC survey. The data used in this project is from 2015 and contains diabetes health indicators:
 
@@ -61,7 +60,7 @@ This data is taken from the Behavioral Risk Factor Surveillance System (BRFSS) w
 
 -   Income: Income scale (INCOME2 see codebook) scale 1-8 1 = less than \$10,000 5 = less than \$35,000 8= \$75,000 or more
 
-Describe the purpose of your EDA and ultimate goal of modeling
+The purpose of this EDA is to determine risk factors for diabetes.
 
 ## Data
 
@@ -72,7 +71,8 @@ data <- read.csv("./diabetes_binary_health_indicators_BRFSS2015.csv")
 # convert variables to factors with meaningful level names
 data$Diabetes_binary <- factor(data$Diabetes_binary,
                            levels= c(0,1),
-                           labels = c("no diabetes","prediabetes or diabetes"))
+                           labels = c("no diabetes","prediabetes or diabetes"),
+                           ordered = TRUE)
 data$HighBP <- factor(data$HighBP,
                   levels = c(0,1),
                   labels = c("no high BP", "high BP"))
@@ -151,7 +151,8 @@ data$Sex <- factor(data$Sex,
                    labels = c("female","male"))
 data$Age <- factor(data$Age,
                    levels = c(1,2,3,4,5,6,7,8,9,10,11,12,13),
-                   labels = c("18-24","25-29","30-34","35-39","40-44","45-49","50-54","55-59","60-64","65-69","70-74","75-79","80+"))
+                   labels = c("18-24","25-29","30-34","35-39","40-44","45-49","50-54","55-59","60-64","65-69","70-74","75-79","80+"),
+                   ordered = TRUE)
 data$Education <- factor(data$Education,
                          levels = c(1,2,3,4,5,6),
                          labels = c("Never attended school or only kindergarten","elementary","some high scohol","high school graduate","some college or technical school","college graduate"))
@@ -166,16 +167,25 @@ sum(is.na(data))
 
 ## Summarizations
 
-```{r}
-# meaningful summary statistics and plots about the data (especially as it relates to your response)
-# Be sure to have a narrative about what you are exploring and what the summaries and graph you created say about the relationships in your data.
+### Obesity vs Diabetes
 
-# Obesity vs Diabetes- obesity is a risk factor for diabetes
+Obesity is a risk factor for diabetes.
+
+```{r}
+# Obesity vs Diabetes
 ggplot(data, aes(x=BMI, fill=Diabetes_binary)) +
   geom_density(alpha=0.5) +
   scale_fill_manual(values=c("no diabetes"="lightgreen","prediabetes or diabetes"="lightpink"))
+```
 
-# Income vs Diabetes- income level is positively associated with ability to access to healthy foods which help prevent diabetes. 
+The plot indicates that a higher BMI is associated with more cases of diabetes.
+
+### Income vs Diabetes
+
+Income level could be positively associated with the ability to have access to healthy foods and proper medical care which help prevent diabetes.
+
+```{r}
+# Income vs Diabetes
 income_diabetes_counts <- data |>
   group_by(Diabetes_binary,Income) |>
   summarise(n=n())
@@ -189,10 +199,20 @@ income_summary <- data.frame(income_levels,income_prop)
 ggplot(income_summary, aes(x = Income, y = n)) +
   geom_bar(stat = "identity", position = "stack", fill="lightpink") +
   labs(title = "Income vs Diabetes",x="Income",y="Proportion Prediabetic/Diabetic")
+```
 
-# Age vs Diabetes- risk for diabetes increases as age increases
+The plot shows that the proportion of diabetes decreases as income level increases, indicating that lower income levels could be more at risk for diabetes.
+
+### Age vs Diabetes
+
+Risk for diabetes increases as age increases.
+
+```{r}
+# Age vs Diabetes
 ggplot(data, aes(x = Age, fill = Diabetes_binary)) +
   geom_bar(stat = "count", position = "stack") +
   labs(title = "Age vs Diabetes", x = "Age Category", y = "", fill = "Diabetes") +
   scale_fill_manual(values = c("no diabetes" = "lightgreen","prediabetes or diabetes" = "lightpink"))
 ```
+
+The plot indicates that diabetes increases as age increases up until about age 65-69, after which the number of diabetics vs not diabetics decreases.
